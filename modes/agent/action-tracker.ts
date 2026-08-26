@@ -1,5 +1,5 @@
-import type { ActionLog, ActionStatus } from "./types";
-import { isMutationType } from "./types";
+import type { ActionLog, ActionStatus } from "./types.ts";
+import { isMutationType } from "./types.ts";
 
 export class ActionTracker{
 

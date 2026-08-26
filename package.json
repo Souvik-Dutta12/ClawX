@@ -24,6 +24,7 @@
     "clawx-build": "./index.ts"
   },
   "devDependencies": {
+    "@types/marked-terminal": "^6.1.1",
     "@types/node": "^26.3.0",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
@@ -35,6 +36,9 @@
     "ai": "^7.0.79",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
-    "figlet": "^1.11.4"
+    "dotenv": "^17.4.2",
+    "figlet": "^1.11.4",
+    "marked": "^15.0.12",
+    "marked-terminal": "^7.3.0"
   }
 }

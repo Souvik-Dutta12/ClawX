@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { homedir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import type { AgentConfig, ActionLog } from './types';
-import { ActionTracker } from './action-tracker';
+import type { AgentConfig, ActionLog } from './types.ts';
+import { ActionTracker } from './action-tracker.ts';
 
 const TEXT_EXT = new Set([
     '.ts',
@@ -34,10 +34,16 @@ export class ToolExecutor {
     private readonly norm = (rel: string) =>
         path.posix.normalize(rel.split(path.sep).join("/")).replace(/^\.\//, "");
 
+    private readonly tracker: ActionTracker;
+    private readonly config: AgentConfig;
+
     constructor(
-        private readonly tracker: ActionTracker,
-        private readonly config: AgentConfig,
-    ) { }
+        tracker: ActionTracker,
+        config: AgentConfig,
+    ) {
+        this.tracker = tracker;
+        this.config = config;
+    }
 
     private resolveSafe(rel: string): string {
         const abs = path.resolve(this.config.codebasePath, rel);
@@ -467,5 +473,9 @@ export class ToolExecutor {
         }
 
         return { errors };
+    }
+    clearStaging(): void{
+        this.overlay.clear()
+        this.deleted.clear()
     }
 }
