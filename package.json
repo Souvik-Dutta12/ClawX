@@ -1,0 +1,38 @@
+{
+  "name": "clawx",
+  "version": "1.0.0",
+  "description": "This is an agent that gives look on your codebase and manipulate with your permission",
+  "homepage": "https://github.com/Souvik-Dutta12/ClawX#readme",
+  "bugs": {
+    "url": "https://github.com/Souvik-Dutta12/ClawX/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Souvik-Dutta12/ClawX.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "bin": {
+    "clawx-build": "./index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.3.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@clack/core": "^1.4.3",
+    "@clack/prompts": "^1.7.0",
+    "chalk": "^6.0.0",
+    "commander": "^15.0.0",
+    "figlet": "^1.11.4"
+  }
+}
