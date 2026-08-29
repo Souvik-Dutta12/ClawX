@@ -14,6 +14,7 @@ import { ToolExecutor } from "../agent/tool-executer.ts";
 import { defaultAgentConfig } from "../agent/types.ts";
 import type { Plan, PlanStep } from './types.ts';
 import { title } from "node:process";
+import { createWebTools } from "./web-tools.ts";
 
 const planSchema = z.object({
     researchSummary: z.string().optional(),
@@ -108,13 +109,13 @@ export const generatePlan = async(goal: string)=>{
     const tracker = new ActionTracker();
     const executor = new ToolExecutor(tracker, config);
 
-    const hashWeb = false;
+    const hashWeb = !!process.env.FIRECRAWL_API_KEY;
     const model = wrapLanguageModel({
         model: getAgentModel(),
         middleware: extractJsonMiddleware()
     })
-    //Todo:add websearch tool
-    const tools = { ...readOnlyTools(executor) };
+    
+    const tools = { ...readOnlyTools(executor), ...(hashWeb ? createWebTools(tracker) : {}) };
     console.log(chalk.blueBright("\n🔍 Researching and drafting a plan ...\n"));
 
     const result = await generateText({
