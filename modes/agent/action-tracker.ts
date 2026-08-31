@@ -34,7 +34,7 @@ export class ActionTracker{
         )
     }
 
-    UpdateStatus(
+    updateStatus(
         id: string,
         status: ActionStatus,
         userApproved?: boolean

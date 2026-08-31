@@ -74,11 +74,11 @@ export const runApprovalFlow = async (tracker: ActionTracker): Promise<boolean> 
     })
 
     if (isCancel(choice) || choice === "cancel") {
-        for (const a of pending) tracker.UpdateStatus(a.id, "rejected", false);
+        for (const a of pending) tracker.updateStatus(a.id, "rejected", false);
         return false;
     }
     if (choice === "all") {
-        for (const a of pending) tracker.UpdateStatus(a.id, "approved", true);
+        for (const a of pending) tracker.updateStatus(a.id, "approved", true);
         return true;
     }
     for (const g of groupPending(pending)) {
@@ -93,7 +93,7 @@ export const runApprovalFlow = async (tracker: ActionTracker): Promise<boolean> 
             });
 
             if (isCancel(opt)) {
-                for (const a of pending) tracker.UpdateStatus(a.id, "rejected", false);
+                for (const a of pending) tracker.updateStatus(a.id, "rejected", false);
                 return false;
             }
 
@@ -107,7 +107,7 @@ export const runApprovalFlow = async (tracker: ActionTracker): Promise<boolean> 
             }
 
             for (const id of g.actionIds) {
-                tracker.UpdateStatus(
+                tracker.updateStatus(
                     id,
                     opt === "accept" ? "approved" : "rejected",
                     opt === "accept",
