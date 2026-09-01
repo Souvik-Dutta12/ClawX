@@ -4,7 +4,8 @@ import {
     generateText,
     stepCountIs,
     tool,
-    wrapLanguageModel
+    wrapLanguageModel,
+    type LanguageModelMiddleware
 } from "ai";
 import { z } from 'zod';
 import chalk from 'chalk';
@@ -92,48 +93,160 @@ const readOnlyTools = (executor: ToolExecutor) => {
     }
 }
 
-const PLAN_INSTRUCTIONS = (codebase: string, hasWeb: boolean) =>
-    [
-        'You are a Plan-Mode planner. You DO NOT modify files.',
-        `Workspace: ${codebase}`,
-        'Use read-only tools for codebase/skills research:',
-        hasWeb
-            ? 'Web tools are available (web_search/web/fetch_url). Use only when needed.'
-            : 'Web tools are unavailable (no FIRECRAWL_API_KEY).',
-        'Output must match the provided JSON schema.',
-        'Keep it short: 1-15 steps.',
-    ].join('\n');
 
-export const generatePlan = async(goal: string)=>{
+const PLAN_INSTRUCTIONS = (
+    codebase: string,
+    hasWeb: boolean
+) =>
+    [
+        "You are a Plan-Mode planner: an expert software architect who designs execution plans without writing or modifying any code.",
+        "You DO NOT modify files. You DO NOT run commands that change state.",
+        `Workspace: ${codebase}`,
+        "",
+        "RESEARCH PHASE (do this before planning):",
+        "- Use read-only tools (read, search, grep, list) to understand the relevant code: structure, conventions, existing patterns, and constraints.",
+        "- Check for related configs, docs, or skills that define how work should be done in this repo.",
+        hasWeb
+            ? "- Web tools are available. Use them only when the task needs current info or external library/API docs not present in the codebase."
+            : "- Web tools are unavailable because FIRECRAWL_API_KEY is not configured. Do not claim to have looked anything up online.",
+        "- Never guess about code you have not actually inspected. Uncertain items go in 'assumptions', not stated as fact.",
+        "",
+        "PLANNING PHASE:",
+        "- Break the goal into the fewest well-scoped steps that fully accomplish it. Prefer fewer, meaningful steps over many trivial ones.",
+        "- Each step must be concrete and independently verifiable — name the file/function/change, not just the goal restated.",
+        "- Record real dependencies between steps via 'dependsOn' (zero-based indices into 'steps').",
+        "- List files/modules likely to be touched, based only on what you found in the RESEARCH PHASE.",
+        "- Note genuine risks (breaking changes, ambiguous requirements, missing info); use [] if there are none.",
+        "- If the plan's structure, flow, sequencing, or state transitions are easier to grasp visually, include ONE Mermaid diagram. Skip it (empty string) for simple/linear tasks — never force one in.",
+        "",
+        "IMPORTANT — OUTPUT CONTRACT:",
+        "Return ONLY valid JSON. No Markdown. No headings. No ``` fences. No explanation before or after the JSON. No questions. Never ask 'Shall I proceed?'.",
+        "Escape all string values properly (\\n for newlines, \\\" for quotes) so the output is directly JSON.parse-able.",
+        "",
+        "The response must match this structure exactly:",
+        '{"title":"short plan title","researchSummary":"what you learned that is relevant to this plan","assumptions":["assumption"],"diagram":"mermaid diagram source, or empty string if not needed","steps":[{"title":"step title","description":"step description","hints":["hint"],"filesInvolved":["path/to/file"],"dependsOn":[0],"complexity":"low"}],"risks":["risk"],"successCriteria":["how to verify the plan worked"]}',
+        "",
+        "FIELD RULES:",
+        "- 'diagram': valid Mermaid syntax only (flowchart, sequenceDiagram, classDiagram, stateDiagram-v2, or erDiagram — pick whichever fits the plan). Use '' when a diagram wouldn't add clarity.",
+        "- 'assumptions', 'risks', 'successCriteria', 'filesInvolved', 'dependsOn': always include the key; use [] when not applicable.",
+        "- 'complexity': one of 'low', 'medium', 'high' only.",
+        "",
+        "Keep it short: 1-15 steps.",
+    ].join("\n");
+
+const extractJson = (text: string): unknown => {
+    const cleaned = text.trim();
+
+    // Try raw JSON first
+    try {
+        return JSON.parse(cleaned);
+    } catch {
+        // Continue
+    }
+
+    // Try JSON inside ```json ... ```
+    const fenced = cleaned.match(
+        /```(?:json)?\s*([\s\S]*?)\s*```/i
+    );
+
+    if (fenced?.[1]) {
+        try {
+            return JSON.parse(fenced[1].trim());
+        } catch {
+            // Continue
+        }
+    }
+
+    // Find JSON object anywhere in the response
+    const start = cleaned.indexOf("{");
+
+    if (start === -1) {
+        throw new Error(
+            "Planner did not return JSON.\n\n" +
+            `Model response:\n${text}`
+        );
+    }
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = start; i < cleaned.length; i++) {
+        const char = cleaned[i];
+
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+
+        if (char === "\\") {
+            escaped = true;
+            continue;
+        }
+
+        if (char === '"') {
+            inString = !inString;
+            continue;
+        }
+
+        if (inString) continue;
+
+        if (char === "{") {
+            depth++;
+        }
+
+        if (char === "}") {
+            depth--;
+
+            if (depth === 0) {
+                const candidate = cleaned.slice(start, i + 1);
+
+                try {
+                    return JSON.parse(candidate);
+                } catch {
+                    break;
+                }
+            }
+        }
+    }
+
+    throw new Error(
+        "Planner returned invalid JSON.\n\n" +
+        `Model response:\n${text}`
+    );
+};
+
+export const generatePlan = async (goal: string) => {
     const config = defaultAgentConfig();
     const tracker = new ActionTracker();
     const executor = new ToolExecutor(tracker, config);
 
     const hashWeb = !!process.env.FIRECRAWL_API_KEY;
-    const model = wrapLanguageModel({
-        model: getAgentModel(),
-        middleware: extractJsonMiddleware()
-    })
-    
-    const tools = { ...readOnlyTools(executor), ...(hashWeb ? createWebTools(tracker) : {}) };
+    const tools = {
+        ...readOnlyTools(executor),
+        ...(hashWeb ? createWebTools(tracker) : {})
+    };
     console.log(chalk.blueBright("\n🔍 Researching and drafting a plan ...\n"));
 
+
     const result = await generateText({
-        model,
+        model: getAgentModel(),
         tools,
         stopWhen: stepCountIs(20),
         system: PLAN_INSTRUCTIONS(config.codebasePath, hashWeb),
         prompt: `User goal: \n${goal}`,
-        output: Output.object({schema: planSchema})
+
     })
 
-    const validate = planSchema.parse(result.output)
-    const steps:PlanStep[] = validate.steps.map((s,i)=>({
-        id: `step-${i+1}`,
+    const parsed = extractJson(result.text);
+
+    const validate = planSchema.parse(parsed);
+    const steps: PlanStep[] = validate.steps.map((s, i) => ({
+        id: `step-${i + 1}`,
         title: s.title,
         description: s.description,
         hints: s.hints,
         complexity: s.complexity
     }))
-    return {goal, researchSummary: validate.researchSummary, steps}
+    return { goal, researchSummary: validate.researchSummary, steps }
 }

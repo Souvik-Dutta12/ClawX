@@ -90,7 +90,6 @@ export const runAskMode = async () => {
     const tracker = new ActionTracker();
     const executor = new ToolExecutor(tracker, config);
 
-    // TODO: web-search tool (firecrawl)
 
     const tools = {
         ...createAskTools(executor),
