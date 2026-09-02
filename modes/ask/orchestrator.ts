@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { confirm, isCancel, text } from "@clack/prompts";
-import { ToolLoopAgent, stepCountIs, tool } from "ai";
+import { stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
 import { getAgentModel } from "../../ai/ai.config.ts";
 import { ActionTracker } from "../agent/action-tracker.ts";
@@ -97,14 +97,27 @@ export const runAskMode = async () => {
     }
 
 
-    const agent = new ToolLoopAgent({
+    const result = streamText({
         model: getAgentModel(),
+        prompt: question.trim(),
+        tools,
         stopWhen: stepCountIs(20),
-        tools
     });
-    const result = await agent.generate({ prompt: question.trim() });
-    const answer = result.text?.trim() || "(no answer)";
-    console.log("\n" + renderTerminalMarkdown(answer) + "\n");
+    
+    let answer = "";
+    
+    process.stdout.write("\n");
+    
+    for await (const chunk of result.textStream) {
+        answer += chunk;
+        process.stdout.write(chunk);
+    }
+    
+    process.stdout.write("\n\n");
+    
+    const finalAnswer = answer.trim() || "(no answer)";
+    console.log(renderTerminalMarkdown(finalAnswer));
+
 
     const wantSave = await confirm({
         message: "Save this answer to a .md file in the current directory ?",

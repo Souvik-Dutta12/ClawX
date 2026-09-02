@@ -1,47 +1,76 @@
 import chalk from "chalk";
 import { confirm, isCancel, text } from "@clack/prompts";
-import { ToolLoopAgent, stepCountIs } from "ai";
-import { getAgentModel } from "../../ai/ai.config.ts";
 import { ActionTracker } from "../agent/action-tracker.ts";
 import { ToolExecutor } from "../agent/tool-executer.ts";
-import { createAgentTools } from "../agent/agent-tools.ts";
 import { defaultAgentConfig } from "../agent/types.ts";
 import { runApprovalFlow } from "../agent/approval.ts";
-import { renderTerminalMarkdown } from "../../tui/terminal-md.ts";
 import { generatePlan } from "./planner.ts";
 import { printPlan, selectSteps } from "./selection.ts";
-import type { Plan, PlanStep } from "./types.ts";
-import { createWebTools } from "./web-tools.ts";
-
-function stepPrompt(goal: string, step: PlanStep): string {
-    return [`Goal: ${goal}`, `Step: ${step.title}`, step.description].join('\n');
-}
-
+import type { Plan } from "./types.ts";
 
 const asMd = (plan: Plan): string => {
     const parts: string[] = [];
-    parts.push(`# Plan\n`);
+
+    parts.push(`# ${plan.title?.trim() || 'Plan'}\n`);
     parts.push(`## Goal\n\n${plan.goal.trim()}\n`);
+
     if (plan.researchSummary?.trim()) {
         parts.push(`\n## Research Summary\n\n${plan.researchSummary.trim()}\n`);
     }
-    parts.push(`\n## Steps\n`);
+
+    if (plan.techStack?.length) {
+        parts.push(`\n## Tech Stack\n`);
+        for (const t of plan.techStack) {
+            parts.push(`- **${t.name}**${t.purpose ? ` — ${t.purpose}` : ''}\n`);
+        }
+    }
+
+    if (plan.diagrams?.length) {
+        parts.push(`\n## Diagrams\n`);
+        for (const d of plan.diagrams) {
+            parts.push(`\n### ${d.title}\n`);
+            parts.push('\n```mermaid\n' + d.mermaid.trim() + '\n```\n');
+        }
+    }
+
+    if (plan.assumptions?.length) {
+        parts.push(`\n## Assumptions\n`);
+        for (const a of plan.assumptions) parts.push(`- ${a}\n`);
+    }
+
+    parts.push(`\n## Implementation Procedure\n`);
     for (const [i, s] of plan.steps.entries()) {
         const complexity = s.complexity ? ` [${s.complexity}]` : '';
         parts.push(`\n### Step ${i + 1}. ${s.title}${complexity}\n`);
         parts.push(`${s.description}\n`);
+        if (s.filesInvolved?.length) {
+            parts.push(`\nLikely files:\n`);
+            for (const f of s.filesInvolved) parts.push(`- \`${f}\`\n`);
+        }
         if (s.hints?.length) {
             parts.push(`\nHints:\n`);
             for (const h of s.hints) parts.push(`- ${h}\n`);
         }
     }
+
+    if (plan.risks?.length) {
+        parts.push(`\n## Risks\n`);
+        for (const r of plan.risks) parts.push(`- ${r}\n`);
+    }
+
+    if (plan.successCriteria?.length) {
+        parts.push(`\n## Success Criteria\n`);
+        for (const c of plan.successCriteria) parts.push(`- ${c}\n`);
+    }
+
     return parts.join('');
 };
 
 export const runPlanMode = async (): Promise<void> => {
     console.log(chalk.bold('\n📄 Plan Mode\n'));
+    console.log(chalk.dim('Plan Mode only produces a design document (plan.md). It never writes or executes project code.\n'));
 
-    const goal = await text({ message: "What is your goal?" })
+    const goal = await text({ message: "What is your goal?" });
     if (isCancel(goal) || !goal.trim()) return;
 
     const plan = await generatePlan(goal);
@@ -50,7 +79,26 @@ export const runPlanMode = async (): Promise<void> => {
     const selected = await selectSteps(plan);
     if (selected.length === 0) return;
 
-    // Create executor early so we can use it for saving the plan
+    const finalPlan: Plan = { ...plan, steps: selected };
+
+    const wantSave = await confirm({
+        message: "Save this plan to a .md file?",
+        initialValue: true,
+    });
+    if (isCancel(wantSave) || !wantSave) return;
+
+    const fileName = await text({
+        message: "Filename",
+        initialValue: "plan.md",
+        validate: (v) => {
+            const s = (v ?? '').trim();
+            if (!s) return 'Required';
+            if (s.includes('..') || s.includes('/') || s.includes('\\')) return 'No paths';
+            if (!s.toLowerCase().endsWith('.md')) return 'Must end with .md';
+        },
+    });
+    if (isCancel(fileName)) return;
+
     const config = defaultAgentConfig();
     config.tools.allowFileCreation = true;
     config.tools.allowFileModification = false;
@@ -60,78 +108,22 @@ export const runPlanMode = async (): Promise<void> => {
     const tracker = new ActionTracker();
     const executor = new ToolExecutor(tracker, config);
 
-
-    const proceed = await confirm({
-        message: `Execute ${selected.length} step(s)`,
-        initialValue: true
-    });
-    if (isCancel(proceed) || !proceed) return;
-
-    const tools = {
-        ...createAgentTools(executor),
-        ...createWebTools(tracker)
-    }
-
-    for (const step of selected) {
-        console.log(chalk.bold(`\n🔧 ${step.title}\n`));
-
-        const agent = new ToolLoopAgent({
-            model: getAgentModel(),
-            stopWhen: stepCountIs(30),
-            tools
-        });
-
-        const result = await agent.generate({ prompt: stepPrompt(plan.goal, step) })
-        if (result.text) {
-
-            console.log(renderTerminalMarkdown(result.text))
-            
-            // Ask to save the plan to a .md file (mirrors Ask Mode's pattern)
-            const wantSave = await confirm({
-                message: "Save this plan to a .md file in the current directory ?",
-                initialValue: false,
-            });
-
-            if (!isCancel(wantSave) && wantSave) {
-                const fileName = await text({
-                    message: "Filename",
-                    initialValue: "plan.md",
-                    validate: (v) => {
-                        const s = (v ?? '').trim();
-                        if (!s) return 'Required';
-                        if (s.includes('..') || s.includes('/') || s.includes('\\')) return 'No paths';
-                        if (!s.toLowerCase().endsWith('.md')) return 'Must end with .md';
-                    }
-                });
-
-                if (!isCancel(fileName)) {
-                    executor.createFile(fileName, asMd(plan));
-                    const ok = await runApprovalFlow(tracker);
-                    if (!ok) {
-                        executor.clearStaging();
-                        return;
-                    }
-                    executor.applyApprovedFromTracker();
-                    executor.clearStaging();
-                }
-            }
-            return 
-        }
-    }
+    executor.createFile(fileName, asMd(finalPlan));
 
     const ok = await runApprovalFlow(tracker);
-
-    if (!ok) return executor.clearStaging();
+    if (!ok) {
+        executor.clearStaging();
+        return;
+        
+    }
 
     const { errors } = executor.applyApprovedFromTracker();
+    executor.clearStaging();
 
     if (errors.length) {
         console.log(chalk.red('\nSome operations reported errors:\n'));
         for (const e of errors) console.log(chalk.red(`  • ${e}`));
     } else {
-        console.log(chalk.green('\n✓ Applied.\n'));
+        console.log(chalk.green(`\n✓ Plan saved to ${fileName}\n`));
     }
-
-    executor.clearStaging();
-
-}
+};
