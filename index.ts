@@ -2,6 +2,9 @@
 
 import { Command } from "commander";
 import { runWakeup } from "./tui/wakeup.ts";
+import { safeCall, setupGlobalErrorHandlers } from "./utils/index.ts";
+
+setupGlobalErrorHandlers();
 
 const program = new Command();
 
@@ -13,10 +16,10 @@ program
 program
     .command("wakeup")
     .description("Show the banner and pick cli or telegram mode")
-    .action(
-        async () => {
-           await runWakeup()
-        }
-    );
+    .action(async () => {
+        await safeCall(async () => {
+            await runWakeup();
+        }, { exitOnError: true });
+    });
 
 await program.parseAsync(process.argv)

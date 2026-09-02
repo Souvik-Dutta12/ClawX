@@ -9,6 +9,7 @@ import { defaultAgentConfig } from "../agent/types.ts";
 import { renderTerminalMarkdown } from "../../tui/terminal-md.ts";
 import { runApprovalFlow } from "../agent/approval.ts";
 import { createWebTools } from "../plan/web-tools.ts";
+import { logError, logInfo } from "../../utils/error.ts";
 
 const createAskTools = (executor: ToolExecutor) => {
     return {
@@ -76,72 +77,86 @@ const asMd = (question: string, answer: string): string => {
 }
 
 export const runAskMode = async () => {
-    console.log(chalk.bold("\n ❔ Ask Mode \n"));
+    try {
+        logInfo("\n ❔ Ask Mode \n");
 
-    const question = await text({ message: "What do you want to ask?" });
-    if (isCancel(question) || !question.trim()) return;
+        const question = await text({ message: "What do you want to ask?" });
+        if (isCancel(question) || !question.trim()) return;
 
-    const config = defaultAgentConfig()
-    config.tools.allowFileCreation = true;
-    config.tools.allowFileModification = false;
-    config.tools.allowFolderCreation = false;
-    config.tools.allowShellExecution = false;
+        const config = defaultAgentConfig()
+        config.tools.allowFileCreation = true;
+        config.tools.allowFileModification = false;
+        config.tools.allowFolderCreation = false;
+        config.tools.allowShellExecution = false;
 
-    const tracker = new ActionTracker();
-    const executor = new ToolExecutor(tracker, config);
-
-
-    const tools = {
-        ...createAskTools(executor),
-        ...createWebTools(tracker)
-    }
+        const tracker = new ActionTracker();
+        const executor = new ToolExecutor(tracker, config);
 
 
-    const result = streamText({
-        model: getAgentModel(),
-        prompt: question.trim(),
-        tools,
-        stopWhen: stepCountIs(20),
-    });
-    
-    let answer = "";
-    
-    process.stdout.write("\n");
-    
-    for await (const chunk of result.textStream) {
-        answer += chunk;
-        process.stdout.write(chunk);
-    }
-    
-    process.stdout.write("\n\n");
-    
-    const finalAnswer = answer.trim() || "(no answer)";
-    console.log(renderTerminalMarkdown(finalAnswer));
-
-
-    const wantSave = await confirm({
-        message: "Save this answer to a .md file in the current directory ?",
-        initialValue: false,
-    });
-
-    if (isCancel(wantSave) || !wantSave) return;
-
-    const fileName = await text({
-        message: "Filename",
-        initialValue: "ask.md",
-        validate: (v) => {
-            const s = (v ?? '').trim();
-            if (!s) return 'Required';
-            if (s.includes('..') || s.includes('/') || s.includes('\\')) return 'No paths';
-            if (!s.toLowerCase().endsWith('.md')) return 'Must end with .md';
+        const tools = {
+            ...createAskTools(executor),
+            ...createWebTools(tracker)
         }
-    })
 
-    if (isCancel(fileName)) return;
-    executor.createFile(fileName, asMd(question, answer));
-    const ok = await runApprovalFlow(tracker);
-    if (!ok) return executor.clearStaging();
-    executor.applyApprovedFromTracker();
-    executor.clearStaging();
 
+        const result = streamText({
+            model: getAgentModel(),
+            prompt: question.trim(),
+            tools,
+            stopWhen: stepCountIs(20),
+            onStepFinish: ({ toolCalls }) => {
+                for (const tc of toolCalls) {
+                    const preview = JSON.stringify(tc?.input).slice(0, 160);
+                    console.log(
+                        chalk.green("  ✓"),
+                        chalk.bold(String(tc.toolName)),
+                        chalk.dim(preview + (preview.length >= 160 ? "..." : "")),
+                    );
+                }
+            },
+        });
+
+        let answer = "";
+
+        process.stdout.write("\n");
+
+        for await (const chunk of result.textStream) {
+            answer += chunk;
+            process.stdout.write(chunk);
+        }
+
+        process.stdout.write("\n\n");
+
+        const finalAnswer = answer.trim() || "(no answer)";
+        console.log(renderTerminalMarkdown(finalAnswer));
+
+
+        const wantSave = await confirm({
+            message: "Save this answer to a .md file in the current directory ?",
+            initialValue: false,
+        });
+
+        if (isCancel(wantSave) || !wantSave) return;
+
+        const fileName = await text({
+            message: "Filename",
+            initialValue: "ask.md",
+            validate: (v) => {
+                const s = (v ?? '').trim();
+                if (!s) return 'Required';
+                if (s.includes('..') || s.includes('/') || s.includes('\\')) return 'No paths';
+                if (!s.toLowerCase().endsWith('.md')) return 'Must end with .md';
+            }
+        })
+
+        if (isCancel(fileName)) return;
+        executor.createFile(fileName, asMd(question, answer));
+        const ok = await runApprovalFlow(tracker);
+        if (!ok) return executor.clearStaging();
+        executor.applyApprovedFromTracker();
+        executor.clearStaging();
+
+    } catch (error) {
+        logError(error);
+    }
 }

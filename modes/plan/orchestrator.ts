@@ -7,6 +7,7 @@ import { runApprovalFlow } from "../agent/approval.ts";
 import { generatePlan } from "./planner.ts";
 import { printPlan, selectSteps } from "./selection.ts";
 import type { Plan } from "./types.ts";
+import { logError, logInfo, logSuccess, logWarning } from "../../utils/error.ts";
 
 const asMd = (plan: Plan): string => {
     const parts: string[] = [];
@@ -67,63 +68,67 @@ const asMd = (plan: Plan): string => {
 };
 
 export const runPlanMode = async (): Promise<void> => {
-    console.log(chalk.bold('\n📄 Plan Mode\n'));
-    console.log(chalk.dim('Plan Mode only produces a design document (plan.md). It never writes or executes project code.\n'));
+    try {
+        logInfo('\n📄 Plan Mode\n');
+        logWarning('Plan Mode only produces a design document (plan.md). It never writes or executes project code.');
 
-    const goal = await text({ message: "What is your goal?" });
-    if (isCancel(goal) || !goal.trim()) return;
+        const goal = await text({ message: "What is your goal?" });
+        if (isCancel(goal) || !goal.trim()) return;
 
-    const plan = await generatePlan(goal);
-    printPlan(plan);
+        const plan = await generatePlan(goal);
+        printPlan(plan);
 
-    const selected = await selectSteps(plan);
-    if (selected.length === 0) return;
+        const selected = await selectSteps(plan);
+        if (selected.length === 0) return;
 
-    const finalPlan: Plan = { ...plan, steps: selected };
+        const finalPlan: Plan = { ...plan, steps: selected };
 
-    const wantSave = await confirm({
-        message: "Save this plan to a .md file?",
-        initialValue: true,
-    });
-    if (isCancel(wantSave) || !wantSave) return;
+        const wantSave = await confirm({
+            message: "Save this plan to a .md file?",
+            initialValue: true,
+        });
+        if (isCancel(wantSave) || !wantSave) return;
 
-    const fileName = await text({
-        message: "Filename",
-        initialValue: "plan.md",
-        validate: (v) => {
-            const s = (v ?? '').trim();
-            if (!s) return 'Required';
-            if (s.includes('..') || s.includes('/') || s.includes('\\')) return 'No paths';
-            if (!s.toLowerCase().endsWith('.md')) return 'Must end with .md';
-        },
-    });
-    if (isCancel(fileName)) return;
+        const fileName = await text({
+            message: "Filename",
+            initialValue: "plan.md",
+            validate: (v) => {
+                const s = (v ?? '').trim();
+                if (!s) return 'Required';
+                if (s.includes('..') || s.includes('/') || s.includes('\\')) return 'No paths';
+                if (!s.toLowerCase().endsWith('.md')) return 'Must end with .md';
+            },
+        });
+        if (isCancel(fileName)) return;
 
-    const config = defaultAgentConfig();
-    config.tools.allowFileCreation = true;
-    config.tools.allowFileModification = false;
-    config.tools.allowFolderCreation = false;
-    config.tools.allowShellExecution = false;
+        const config = defaultAgentConfig();
+        config.tools.allowFileCreation = true;
+        config.tools.allowFileModification = false;
+        config.tools.allowFolderCreation = false;
+        config.tools.allowShellExecution = false;
 
-    const tracker = new ActionTracker();
-    const executor = new ToolExecutor(tracker, config);
+        const tracker = new ActionTracker();
+        const executor = new ToolExecutor(tracker, config);
 
-    executor.createFile(fileName, asMd(finalPlan));
+        executor.createFile(fileName, asMd(finalPlan));
 
-    const ok = await runApprovalFlow(tracker);
-    if (!ok) {
+        const ok = await runApprovalFlow(tracker);
+        if (!ok) {
+            executor.clearStaging();
+            return;
+
+        }
+
+        const { errors } = executor.applyApprovedFromTracker();
         executor.clearStaging();
-        return;
-        
-    }
 
-    const { errors } = executor.applyApprovedFromTracker();
-    executor.clearStaging();
-
-    if (errors.length) {
-        console.log(chalk.red('\nSome operations reported errors:\n'));
-        for (const e of errors) console.log(chalk.red(`  • ${e}`));
-    } else {
-        console.log(chalk.green(`\n✓ Plan saved to ${fileName}\n`));
+        if (errors.length) {
+            logError('\nSome operations reported errors:\n');
+            for (const e of errors) logError(`  • ${e}`);
+        } else {
+            logSuccess(`✓ Plan saved to ${fileName}`);
+        }
+    } catch (error) {
+        logError(error);
     }
 };

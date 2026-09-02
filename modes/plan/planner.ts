@@ -11,6 +11,7 @@ import { ToolExecutor } from "../agent/tool-executer.ts";
 import { defaultAgentConfig } from "../agent/types.ts";
 import type { PlanStep } from './types.ts';
 import { createWebTools } from "./web-tools.ts";
+import { logError, logInfo } from "../../utils/error.ts";
 
 const planSchema = z.object({
     title: z.string().optional(),
@@ -237,54 +238,68 @@ const extractJson = (text: string): unknown => {
 };
 
 export const generatePlan = async (goal: string) => {
-    const config = defaultAgentConfig();
-    const tracker = new ActionTracker();
-    const executor = new ToolExecutor(tracker, config);
+    try {
+        const config = defaultAgentConfig();
+        const tracker = new ActionTracker();
+        const executor = new ToolExecutor(tracker, config);
 
-    const hashWeb = !!process.env.FIRECRAWL_API_KEY;
-    const tools = {
-        ...readOnlyTools(executor),
-        ...(hashWeb ? createWebTools(tracker) : {})
-    };
-    console.log(chalk.blueBright("\n🔍 Researching and drafting a plan ...\n"));
+        const hashWeb = !!process.env.FIRECRAWL_API_KEY;
+        const tools = {
+            ...readOnlyTools(executor),
+            ...(hashWeb ? createWebTools(tracker) : {})
+        };
+        logInfo("\n🔍 Researching and drafting a plan ...\n");
 
 
-    const result = streamText({
-        model: getAgentModel(),
-        tools,
-        stopWhen: stepCountIs(20),
-        system: PLAN_INSTRUCTIONS(config.codebasePath, hashWeb),
-        prompt: `User goal: \n${goal}`,
+        const result = streamText({
+            model: getAgentModel(),
+            tools,
+            stopWhen: stepCountIs(20),
+            system: PLAN_INSTRUCTIONS(config.codebasePath, hashWeb),
+            prompt: `User goal: \n${goal}`,
+            onStepFinish: ({ toolCalls }) => {           // 👈 ADD THIS
+                for (const tc of toolCalls) {
+                    const preview = JSON.stringify(tc?.input).slice(0, 160);
+                    console.log(
+                        chalk.green("  ✓"),
+                        chalk.bold(String(tc?.toolName)),
+                        chalk.dim(preview + (preview.length >= 160 ? "..." : "")),
+                    );
+                }
+            },
 
-    })
+        })
 
-    let responseText = "";
+        let responseText = "";
 
-    for await (const chunk of result.textStream) {
-        responseText += chunk;
-    }
+        for await (const chunk of result.textStream) {
+            responseText += chunk;
+        }
 
-    const parsed = extractJson(responseText);
+        const parsed = extractJson(responseText);
 
-    const validate = planSchema.parse(parsed);
-    const steps: PlanStep[] = validate.steps.map((s, i) => ({
-        id: `step-${i + 1}`,
-        title: s.title,
-        description: s.description,
-        hints: s.hints,
-        filesInvolved: s.filesInvolved,
-        dependsOn: s.dependsOn,
-        complexity: s.complexity,
-    }))
-    return {
-        goal,
-        title: validate.title,
-        researchSummary: validate.researchSummary,
-        assumptions: validate.assumptions,
-        techStack: validate.techStack,
-        diagrams: validate.diagrams,
-        risks: validate.risks,
-        successCriteria: validate.successCriteria,
-        steps
+        const validate = planSchema.parse(parsed);
+        const steps: PlanStep[] = validate.steps.map((s, i) => ({
+            id: `step-${i + 1}`,
+            title: s.title,
+            description: s.description,
+            hints: s.hints,
+            filesInvolved: s.filesInvolved,
+            dependsOn: s.dependsOn,
+            complexity: s.complexity,
+        }))
+        return {
+            goal,
+            title: validate.title,
+            researchSummary: validate.researchSummary,
+            assumptions: validate.assumptions,
+            techStack: validate.techStack,
+            diagrams: validate.diagrams,
+            risks: validate.risks,
+            successCriteria: validate.successCriteria,
+            steps
+        }
+    } catch (error) {
+        logError(error);
     }
 }
