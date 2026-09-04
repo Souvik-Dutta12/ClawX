@@ -12,6 +12,16 @@
 
 ---
 
+## 👋 Hi There!
+
+My name is **Souvik Dutta** — welcome to **ClawX**!
+
+I'm passionate about building AI-powered developer tools that make working with codebases easier, safer, and more intuitive. ClawX is my attempt to create an intelligent agent that helps you understand and modify your code with full transparency and control.
+
+Glad to have you here — feel free to explore, contribute, or reach out!
+
+---
+
 ## ✨ Features
 
 - 🤖 **AI-Powered Analysis** - Leverage LLMs via OpenRouter to understand and modify your codebase
@@ -295,6 +305,6 @@ This project is licensed under the ISC License - see the [LICENSE](LICENSE) file
 
 <div align="center">
 
-**Made with ❤️ for developers who want AI assistance without losing control**
+**Made with ❤️ by Souvik Dutta for developers who want AI assistance without losing control**
 
 </div>

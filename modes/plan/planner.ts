@@ -271,9 +271,10 @@ export const generatePlan = async (goal: string) => {
         })
 
         let responseText = "";
-
+        process.stdout.write("\n");
         for await (const chunk of result.textStream) {
             responseText += chunk;
+            process.stdout.write(chunk);
         }
 
         const parsed = extractJson(responseText);
