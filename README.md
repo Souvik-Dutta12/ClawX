@@ -6,59 +6,58 @@
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](https://opensource.org/licenses/ISC)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-**An intelligent AI agent that gives you insight into your codebase and manipulates it with your permission.**
+**An AI agent that gives you insight into your codebase and manipulates it with your permission.**
 
 </div>
 
 ---
 
-## 👋 Hi There!
-
-My name is **Souvik Dutta** — welcome to **ClawX**!
-
-I'm passionate about building AI-powered developer tools that make working with codebases easier, safer, and more intuitive. ClawX is my attempt to create an intelligent agent that helps you understand and modify your code with full transparency and control.
-
-Glad to have you here — feel free to explore, contribute, or reach out!
-
----
-
 ## ✨ Features
 
-- 🤖 **AI-Powered Analysis** - Leverage LLMs via OpenRouter to understand and modify your codebase
-- 🔒 **Safe Mutations** - All changes are staged and require explicit approval before applying
-- 📊 **Codebase Intelligence** - Analyze project structure, search files, and explore code
-- 🌐 **Web Research** - Search the web to gather information for planning
-- 📝 **Plan Generation** - Generate detailed implementation plans with Mermaid diagrams
-- 💬 **Multiple Interfaces** - Use via CLI or Telegram bot
-- 🎨 **Beautiful UI** - ASCII art banners and terminal-friendly markdown rendering
+- 🤖 **AI-Powered Analysis** — uses an LLM (via OpenRouter) to read, reason about, and modify your codebase
+- 🔒 **Safe Mutations** — every file change is *staged* first and only written to disk after you approve it
+- 📊 **Codebase Intelligence** — list/search files, analyze project structure, read skill files
+- 🌐 **Web Research** — optional Firecrawl-powered web search for Ask/Plan modes
+- 📝 **Plan Generation** — generate step-by-step implementation plans
+- 💬 **Two Interfaces** — interactive CLI or a Telegram bot
+- 🎨 **Terminal UI** — ASCII banner + terminal-rendered Markdown output
 
 ---
 
 ## 🚀 Modes
 
-### CLI Mode
+Running the CLI drops you into a menu (`wakeup`) where you choose **CLI** or **Telegram**. CLI mode then offers three sub-modes:
 
-| Mode | Description |
-|------|-------------|
-| **Agent Mode** | Execute code mutations on your codebase with a smart approval workflow. The agent can read, write, modify, and delete files with your permission. |
-| **Plan Mode** | Generate comprehensive implementation plans. Creates design documents with steps, risks, tech stack analysis, and Mermaid diagrams. |
-| **Ask Mode** | Query your codebase using natural language. Get answers with file context and web search capabilities. |
+| Mode | File | Description |
+|------|------|-------------|
+| **Agent Mode** | `modes/agent/orchestrator.ts` | Reads/creates/modifies/deletes files and runs shell commands, all staged behind an approval step. |
+| **Plan Mode** | `modes/plan/orchestrator.ts` | Generates an implementation plan for a stated goal (optionally backed by web research). |
+| **Ask Mode** | `modes/ask/orchestrator.ts` | Answers natural-language questions about the codebase. |
 
-### Telegram Mode
-
-Control ClawX directly from Telegram. Send commands and receive responses just like in the CLI.
+**Telegram Mode** (`modes/telegram/`) exposes the same three capabilities as bot commands (`/agent`, `/plan`, `/ask`) restricted to a single owner chat ID, with inline-button approval for staged changes.
 
 ---
 
-## 🛠️ Installation
+## 🛠️ Tech Stack
 
-### Prerequisites
+- **Runtime:** Node.js, TypeScript (`type: module`)
+- **AI:** [Vercel AI SDK](https://ai.sdk.vercel.sh/) (`ai`) + [`@openrouter/ai-sdk-provider`](https://openrouter.ai/)
+- **CLI UI:** `@clack/prompts`, `chalk`, `figlet`
+- **Bot:** `telegraf`
+- **Web research:** `@mendable/firecrawl-js`
+- **Other:** `commander` (CLI entry), `dotenv`, `diff`, `marked` + `marked-terminal`
 
-- **Node.js** (v18 or higher)
-- **pnpm**, **npm**, **yarn**, or **bun**
-- **OpenRouter API Key** - Get one at [openrouter.ai](https://openrouter.ai)
+---
 
-### Setup
+## 📦 Prerequisites
+
+- **Node.js** v18+
+- A package manager: **npm**, **pnpm**, **yarn**, or **bun**
+- An **OpenRouter API key** — [get one here](https://openrouter.ai)
+
+---
+
+## 🔧 Installation
 
 ```bash
 # Clone the repository
@@ -66,68 +65,108 @@ git clone https://github.com/Souvik-Dutta12/ClawX.git
 cd ClawX
 
 # Install dependencies
-pnpm install
-
-# Configure environment variables
-cp .env.example .env
-```
-
-### Environment Configuration
-
-Create a `.env` file in the root directory:
-
-```env
-OPENROUTER_API_KEY=your_api_key_here
-OPENROUTER_DEFAULT_MODEL=your_preferred_model  # e.g., anthropic/claude-3.5-sonnet
-
-# Optional: Telegram bot configuration
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+npm install
+# or: pnpm install / yarn / bun install
 ```
 
 ---
 
-## 📖 Usage
+## ⚙️ How to Use — Filling the `.env` File
 
-### Start ClawX
+ClawX reads its configuration from a `.env` file in the project root (loaded via `dotenv` from `ai/ai.config.ts`). Create it like this:
 
 ```bash
-pnpm dev
+cp .env.example .env   # if a .env.example exists, otherwise just create .env
 ```
 
-### CLI Mode
+Then fill in the following values:
 
-#### Agent Mode
+```env
+# --- Required ---
+# Your OpenRouter API key (used to call the LLM)
+OPENROUTER_API_KEY=sk-or-your-key-here
+
+# The model ClawX should use for every mode
+OPENROUTER_DEFAULT_MODEL=anthropic/claude-3.5-sonnet
+
+# --- Optional: Telegram bot mode ---
+# Bot token from @BotFather
+TELEGRAM_BOT_TOKEN=123456789:your-telegram-bot-token
+
+# Your personal Telegram chat/user ID — only this ID can command the bot
+TELEGRAM_OWNER_ID=123456789
+
+# --- Optional: Web research (Plan Mode / Ask Mode) ---
+# Enables Firecrawl-based web search tools when set
+FIRECRAWL_API_KEY=fc-your-firecrawl-key
+
+# --- Optional: advanced ---
+# Override the project root the agent operates on (defaults to the current working directory)
+CODEBASE_PATH=.
+
+# Extra SKILL.md directories to expose to the agent, separated by ";"
+SKILL_DIRS=/path/to/skills;/another/path
+```
+
+| Variable | Required | Used for |
+|---|---|---|
+| `OPENROUTER_API_KEY` | ✅ Yes | Authenticating with OpenRouter to run the LLM |
+| `OPENROUTER_DEFAULT_MODEL` | ✅ Yes | Which model ID to use (e.g. `anthropic/claude-3.5-sonnet`, `openai/gpt-4-turbo`) |
+| `TELEGRAM_BOT_TOKEN` | Only for Telegram mode | Authenticates the bot with the Telegram API |
+| `TELEGRAM_OWNER_ID` | Only for Telegram mode | Restricts all bot commands to this chat ID |
+| `FIRECRAWL_API_KEY` | Optional | Turns on web-search tools in Plan/Ask mode |
+| `CODEBASE_PATH` | Optional | Root folder the agent reads/writes (default: `.`) |
+| `SKILL_DIRS` | Optional | Extra directories to scan for `SKILL.md` files |
+
+> **Note:** the code that enables web search checks `FIRECRAWL_API_KEY`, but the Firecrawl client itself is currently instantiated with `process.env.FIRECRAWL_AP_KEY` (missing the "I") in `modes/plan/web-tools.ts`. Until that's fixed, set **both** `FIRECRAWL_API_KEY` and `FIRECRAWL_AP_KEY` to the same value if you want web research to actually work.
+
+Never commit your `.env` file — it's already listed in `.gitignore`.
+
+---
+
+## ▶️ Running ClawX
+
+**Option A — quick start with `tsx` (no build step):**
+```bash
+npx tsx index.ts wakeup
+```
+
+**Option B — compile then run:**
+```bash
+npm run build      # runs tsc, outputs to dist/
+node dist/index.js wakeup
+```
+
+**Option C — install as a global command:**
+```bash
+npm link            # or: npm install -g .
+clawx-build wakeup
+```
+
+Once running, `wakeup` shows the banner and asks you to choose **CLI** or **Telegram**. In CLI mode you then pick **Agent**, **Plan**, or **Ask**.
+
+> `npm run dev` runs `tsc --watch` — it type-checks the project on save but does not start the app. Use one of the options above to actually run it.
+
+### Example — Agent Mode
 ```
 What would you like the agent to do?
 > Create a new component called UserProfile in the components folder
 ```
+The agent reads the codebase, stages the file changes, shows you a diff, and waits for your approval before writing anything.
 
-The agent will:
-1. Analyze your codebase
-2. Propose file changes
-3. Show you a diff of proposed changes
-4. Wait for your approval before applying
-
-#### Plan Mode
-```
-What is your goal?
-> Build a user authentication system with JWT
-```
-
-Generates a comprehensive plan including:
-- Implementation steps
-- Files likely to be involved
-- Tech stack recommendations
-- Risk assessment
-- Success criteria
-
-#### Ask Mode
+### Example — Ask Mode
 ```
 What do you want to ask?
 > How does the authentication flow work in this project?
 ```
 
-Gets intelligent answers with file references and saves to markdown.
+### Example — Telegram Mode
+Once `TELEGRAM_BOT_TOKEN` and `TELEGRAM_OWNER_ID` are set, message your bot:
+```
+/agent Create a Button component with hover effects
+/plan Build a REST API for a blog
+/ask How does auth work here?
+```
 
 ---
 
@@ -135,176 +174,112 @@ Gets intelligent answers with file references and saves to markdown.
 
 ```
 ClawX/
-├── ai/                    # AI configuration and model setup
-│   └── ai.config.ts       # OpenRouter model configuration
-├── modes/                 # Application modes
-│   ├── agent/            # Agent mode implementation
+├── ai/
+│   ├── ai.config.ts        # OpenRouter model + dotenv setup
+│   └── index.ts
+├── modes/
+│   ├── agent/               # Agent mode (mutations + approval)
 │   │   ├── orchestrator.ts
 │   │   ├── tool-executer.ts
+│   │   ├── agent-tools.ts
 │   │   ├── approval.ts
 │   │   ├── action-tracker.ts
 │   │   ├── diff-view.ts
-│   │   └── agent-tools.ts
-│   ├── ask/              # Ask mode implementation
-│   ├── plan/             # Plan mode implementation
+│   │   └── types.ts
+│   ├── ask/
+│   │   └── orchestrator.ts  # Ask mode
+│   ├── plan/                # Plan mode
+│   │   ├── orchestrator.ts
 │   │   ├── planner.ts
-│   │   ├── web-tools.ts
-│   │   └── selection.ts
-│   ├── cli.ts            # CLI mode selector
-│   └── telegram/         # Telegram bot integration
-├── tui/                   # Terminal UI components
-│   ├── wakeup.ts         # Banner and mode selection
-│   └── terminal-md.ts    # Markdown rendering
-├── utils/                 # Utility functions
-├── index.ts              # Entry point
+│   │   ├── selection.ts
+│   │   ├── web-tools.ts     # Firecrawl integration
+│   │   └── types.ts
+│   ├── telegram/            # Telegram bot integration
+│   │   ├── index.ts
+│   │   ├── handlers.ts
+│   │   ├── agent-run.ts
+│   │   ├── approval-session.ts
+│   │   ├── plan-session.ts
+│   │   ├── auth.ts
+│   │   ├── constants.ts
+│   │   └── text.ts
+│   └── cli.ts                # CLI sub-mode selector
+├── tui/
+│   ├── wakeup.ts             # Banner + CLI/Telegram picker
+│   └── terminal-md.ts        # Terminal Markdown rendering
+├── utils/
+│   ├── error.ts
+│   └── index.ts
+├── index.ts                  # CLI entry point (commander)
+├── tsconfig.json
 └── package.json
 ```
 
 ---
 
-## 🔧 Tools Available
+## 🧰 Tools Available to the Agent
 
 ### File Operations
 | Tool | Description |
 |------|-------------|
-| `read_file` | Read a text file from the workspace |
-| `create_file` | Create a new file |
-| `modify_file` | Replace entire file content |
-| `delete_file` | Delete a file |
-| `list_files` | List files and directories |
-| `search_files` | Find files by glob pattern or content |
-| `create_folder` | Create a directory tree |
+| `read_file` | Read a text file |
+| `create_file` | Stage creation of a new file |
+| `modify_file` | Stage a full-file replacement |
+| `delete_file` | Stage deletion of a file |
+| `create_folder` | Stage creation of a directory tree |
+| `list_files` | List files/directories under a path |
+| `search_files` | Find files by glob pattern and/or content substring |
 
 ### Analysis
 | Tool | Description |
 |------|-------------|
-| `analyze_codebase` | Summarize project structure |
-| `list_skills` | List available SKILL.md files |
-| `read_skill` | Read a skill file |
+| `analyze_codebase` | Summarize file counts, sizes, extensions (read-only) |
+| `list_skills` | List available `SKILL.md` files |
+| `read_skill` | Read a specific skill file |
 
 ### External
 | Tool | Description |
 |------|-------------|
-| `execute_shell` | Run shell commands (requires approval) |
-| Web Search | Search the web for information |
-
----
-
-## ⚙️ Configuration
-
-### Agent Configuration
-
-Edit `modes/agent/types.ts` to customize:
-
-```typescript
-{
-  codebasePath: ".",           // Project root
-  maxIterations: 40,           // Max LLM iterations
-  tools: {
-    allowFileCreation: true,
-    allowFileModification: true,
-    allowFileDeletion: true,
-    allowFolderCreation: true,
-    allowShellExecution: true  // Requires extra approval
-  }
-}
-```
-
-### Models
-
-Configure your preferred model in `.env`:
-
-```env
-OPENROUTER_DEFAULT_MODEL=anthropic/claude-3.5-sonnet
-OPENROUTER_DEFAULT_MODEL=openai/gpt-4-turbo
-OPENROUTER_DEFAULT_MODEL=google/gemini-pro
-```
+| `execute_shell` | Queue a shell command, run only after approval |
+| Web search (Plan/Ask) | Firecrawl-backed research, enabled when `FIRECRAWL_API_KEY` is set |
 
 ---
 
 ## 📋 Approval Workflow
 
-ClawX uses a staged mutation system:
+All mutating actions go through the same lifecycle:
 
-1. **Staged** → All changes are prepared but not applied
-2. **Review** → See diffs and descriptions of each change
-3. **Approved** → Apply selected changes
-4. **Applied** → Changes are written to disk
-
-This ensures you always have control over what happens to your codebase.
-
----
-
-## 🎯 Examples
-
-### Example 1: Create a Component
-
-```
-User: Create a Button component with hover effects
-
-ClawX:
-├── Staging: src/components/Button.tsx
-├── + export const Button = ({ children, onClick }) => (
-│   +   <button onClick={onClick} className="btn btn-hover">
-│   +     {children}
-│   +   </button>
-│   + )
-│   + )
-│   + <style> .btn-hover:hover { opacity: 0.8; } </style>
-├── [A]pprove all? [y/n]:
-```
-
-### Example 2: Generate a Plan
-
-```
-User: Build a REST API for a blog
-
-ClawX:
-# Blog REST API Plan
-
-## Tech Stack
-- Express.js — Web framework
-- Prisma — ORM
-
-## Steps
-1. Set up Express server with routes
-2. Configure Prisma schema
-3. Implement CRUD endpoints
-...
-
-[Plan saved to plan.md]
-```
+1. **Staged** — the agent proposes a change, nothing is written yet
+2. **Review** — you see a diff of what would change
+3. **Approve / Reject** — accept all, or reject and discard
+4. **Applied** — approved changes are written to disk
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes
+4. Push to the branch and open a Pull Request
 
 ---
 
 ## 📄 License
 
-This project is licensed under the ISC License - see the [LICENSE](LICENSE) file for details.
+ISC — see `package.json` for details.
 
 ---
 
 ## 🙏 Acknowledgments
 
-- Built with [Vercel AI SDK](https://ai.sdk.vercel.sh/)
-- UI Components by [@clack/prompts](https://github.com/natemoo-re/clack)
-- Powered by [OpenRouter](https://openrouter.ai/)
-
----
+- Built with the [Vercel AI SDK](https://ai.sdk.vercel.sh/)
+- UI via [@clack/prompts](https://github.com/natemoo-re/clack)
+- LLM access via [OpenRouter](https://openrouter.ai/)
+- Web research via [Firecrawl](https://www.firecrawl.dev/)
 
 <div align="center">
 
-**Made with ❤️ by Souvik Dutta for developers who want AI assistance without losing control**
+**Made by Souvik Dutta**
 
 </div>
