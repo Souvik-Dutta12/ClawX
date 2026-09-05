@@ -61,7 +61,7 @@ export const ErrorFormatter = {
 
   formatUnknownError(error: unknown): string {
     return [
-      chalk.red.bold("Unexpected Error"),
+      chalk.redBright.bold("Unexpected Error"),
       "",
       `  ${chalk.white(String(error))}`,
     ].join("\n");
@@ -72,7 +72,7 @@ export const ErrorFormatter = {
  * Log a formatted error to console
  */
 export function logError(error: unknown): void {
-  console.error(chalk.red.bold(`\n❌ Error\n  ${ErrorFormatter.format(error)} \n`) );
+  console.error(chalk.redBright.bold(`\n❌ Error\n  ${ErrorFormatter.format(error)} \n`) );
 }
 
 /**

@@ -64,7 +64,10 @@ export const registerHandler = (bot: Telegraf) => {
         const s = planSessions.get(ctx.chat!.id);
         if (!s) return ctx.answerCbQuery();
 
-        const id = ctx.match[1];
+        const id = ctx.match?.[1];
+        if (!id) {
+            return;
+        }
         if (s.selected.has(id)) s.selected.delete(id);
         else s.selected.add(id);
 

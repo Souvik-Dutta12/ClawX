@@ -9,7 +9,7 @@ import { getAgentModel } from "../../ai/ai.config.ts";
 import { ActionTracker } from "../agent/action-tracker.ts";
 import { ToolExecutor } from "../agent/tool-executer.ts";
 import { defaultAgentConfig } from "../agent/types.ts";
-import type { PlanStep } from './types.ts';
+import type { Plan, PlanStep } from './types.ts';
 import { createWebTools } from "./web-tools.ts";
 import { logError, logInfo } from "../../utils/error.ts";
 
@@ -237,7 +237,7 @@ const extractJson = (text: string): unknown => {
     );
 };
 
-export const generatePlan = async (goal: string) => {
+export const generatePlan = async (goal: string): Promise<Plan> => {
     try {
         const config = defaultAgentConfig();
         const tracker = new ActionTracker();
@@ -302,5 +302,6 @@ export const generatePlan = async (goal: string) => {
         }
     } catch (error) {
         logError(error);
+        throw error;
     }
 }

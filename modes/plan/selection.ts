@@ -6,7 +6,7 @@ import type { Plan, PlanStep } from "./types.ts";
 const COMPLEXITY_COLOR: Record<NonNullable<PlanStep['complexity']>, string> = {
     low: chalk.green('low'),
     medium: chalk.yellow('medium'),
-    high: chalk.red('high'),
+    high: chalk.redBright('high'),
 };
 
 export function printPlan(plan: Plan): void {
